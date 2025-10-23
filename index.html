@@ -10,7 +10,9 @@
   <!-- BRAND BAR -->
   <header class="brandbar" role="banner">
     <div class="brand-left">
-      <span class="jerrycan" aria-hidden="true"></span>
+      <!-- Update the filename to match your actual asset in /img -->
+      <img src="./img/jerrycan.png" alt="" class="brand-logo"
+           onerror="this.style.display='none'"/>
       <span class="brand-name">charity: water</span>
     </div>
     <nav class="brand-right" aria-label="Utility">
@@ -49,7 +51,8 @@
       <div class="lane"></div>
       <div id="player" role="img" aria-label="Water droplet">💧</div>
       <div id="hint">Swipe or use ← →</div>
-      <!-- Confetti container -->
+
+      <!-- Water droplet "confetti" layer -->
       <div id="confetti"></div>
     </div>
   </section>

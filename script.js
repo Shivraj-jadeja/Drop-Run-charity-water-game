@@ -35,21 +35,20 @@ const FACTS = [
   {title:'Time Saved',   text:'Clean water nearby can save families 1–3 hours a day.'},
 ];
 
-// --- Item sets with per-item scoring (chosen emojis)
+// --- Item sets with per-item scoring
 const GOOD_ITEMS = [
-  {icon:"♻️", points:15, impact:6}, // recycle
-  {icon:"✨", points:10, impact:5}, // sparkle
-  {icon:"🔧", points:12, impact:7}, // wrench
+  {icon:"♻️", points:15, impact:6},
+  {icon:"✨", points:10, impact:5},
+  {icon:"🔧", points:12, impact:7},
 ];
-
 const BAD_ITEMS = [
-  {icon:"💥", points:-15}, // impact/explosion
-  {icon:"🛢️", points:-12}, // oil barrel
-  {icon:"⚠️", points:-10}, // caution sign
+  {icon:"💥", points:-15},
+  {icon:"🛢️", points:-12},
+  {icon:"⚠️", points:-10},
 ];
 
 // ---- State
-let state = 'HOME';          // HOME | PLAYING | PAUSED | RESULTS
+let state = 'HOME';          // HOME | PLAYING | PAUSED | RESULTS | CELEBRATE
 let lane = 1;                // 0..2
 let score = 0, lives = 3, impact = 0, timer = 60; // 60s run
 let lastSpawn = 0, spawnGap = 900, speed = 120;
@@ -80,22 +79,41 @@ function pop(text) {
   setTimeout(()=> f.remove(), 600);
 }
 
-// ---- Confetti (simple, no libs)
-function burstConfetti(count = 80) {
-  // brand-friendly colors: yellow + neutrals
-  const colors = ['#FFC907','#ffd74a','#fff1a6','#e5e7eb','#c7cad1'];
+// ---- Water droplet "confetti"
+function rainOnce(count = 18) {
   const w = playArea.clientWidth;
   for (let i=0; i<count; i++){
-    const piece = document.createElement('div');
-    piece.className = 'confetto';
-    piece.style.left = Math.random()*w + 'px';
-    piece.style.top = '-10px';
-    piece.style.background = colors[Math.floor(Math.random()*colors.length)];
-    piece.style.transform = `rotate(${Math.random()*180}deg)`;
-    piece.style.animationDuration = (0.9 + Math.random()*0.8) + 's';
-    confettiLayer.appendChild(piece);
-    setTimeout(()=> piece.remove(), 1600);
+    const d = document.createElement('span');
+    d.className = 'drop';
+    d.textContent = '💧';
+    d.style.left = Math.random() * w + 'px';
+    d.style.fontSize = (18 + Math.random()*14) + 'px';
+    d.style.setProperty('--dur', (1.2 + Math.random()*1.2) + 's');
+    const sway = (Math.random()<0.5 ? -1 : 1) * (8 + Math.random()*28);
+    d.style.setProperty('--dx', sway + 'px');
+    confettiLayer.appendChild(d);
+    setTimeout(()=> d.remove(), 2400);
   }
+}
+
+// Smooth celebration: keep raining in small waves, then resolve after ms
+function rainSequence(ms = 3000) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    // first burst feels good
+    rainOnce(26);
+    // then small waves every ~200ms
+    const interval = setInterval(() => {
+      rainOnce(12);
+      if (performance.now() - start > ms) {
+        clearInterval(interval);
+        // small final burst
+        rainOnce(30);
+        // wait a bit so final drops can fall
+        setTimeout(resolve, 800);
+      }
+    }, 220);
+  });
 }
 
 // ---- Game loop functions
@@ -203,28 +221,35 @@ function startRun() {
   score = 0; lives = 3; impact = 0; timer = 60;
   lastSpawn = 0; spawnGap = 900; speed = 120; lastTime = 0;
   objects.forEach(o => o.remove()); objects = [];
-  confettiLayer.innerHTML = ''; // clear old confetti
+  confettiLayer.innerHTML = ''; // clear old droplets
   setLane(1); updateHUD();
   rafId = requestAnimationFrame(loop);
 }
 
 function endRun(reason = 'normal') {
-  state = 'RESULTS';
   cancelAnimationFrame(rafId);
 
   if (reason === 'impact') {
+    // 1) Enter a celebration state (stay on Game view)
+    state = 'CELEBRATE';
     resultTitle.textContent = 'Impact Reached! 🎉';
     factTitle.textContent = 'Great job!';
     factBody.textContent  = 'Your Impact bar hit 100%. Thanks for learning and sharing clean water facts.';
-    // confetti burst
-    burstConfetti(100);
+
+    // 2) Run a smooth droplet rain for ~3 seconds
+    rainSequence(3000).then(() => {
+      // 3) After rain, switch to Results
+      state = 'RESULTS';
+      show('results');
+    });
   } else {
+    state = 'RESULTS';
     resultTitle.textContent = 'Run Complete!';
     const fact = FACTS[Math.floor(Math.random()*FACTS.length)];
     factTitle.textContent = fact.title;
     factBody.textContent = fact.text;
+    show('results');
   }
-  show('results');
 }
 
 // ---- Buttons
@@ -254,4 +279,4 @@ btn.share.addEventListener('click', async () => {
 
 // ---- Init
 show('home');
-console.log('Drop Run ready (confetti on win, brand bar, results Home button).');
+console.log('Drop Run ready (smooth droplet rain + delayed results).');
