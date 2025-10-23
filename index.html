@@ -1,13 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Charity Water Game</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Charity Water Game</title>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-    <h1>Welcome to the Charity Water Game Prototype</h1>
-    <script src="script.js"></script>
+  <!-- BRAND BAR -->
+  <header class="brandbar" role="banner">
+    <div class="brand-left">
+      <span class="jerrycan" aria-hidden="true"></span>
+      <span class="brand-name">charity: water</span>
+    </div>
+    <nav class="brand-right" aria-label="Utility">
+      <a class="nav-link" href="https://www.charitywater.org" target="_blank" rel="noopener">Learn more</a>
+      <a class="btn donate small" id="donateTop" href="https://www.charitywater.org/donate" target="_blank" rel="noopener">Donate</a>
+    </nav>
+  </header>
+
+  <!-- HOME -->
+  <section id="home" class="view active">
+    <div class="logo" aria-hidden="true">💧</div>
+    <h1>Race a droplet. Power clean water.</h1>
+    <div class="row">
+      <button id="playBtn" class="btn primary">Play</button>
+      <button id="howBtn" class="btn">How It Helps</button>
+    </div>
+    <a class="tiny" href="#" aria-disabled="true">Campus Leaderboard</a>
+    <footer class="tiny">Inspired by charity: water</footer>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="view">
+    <header class="hud">
+      <div class="chip">Score: <span id="score">0</span></div>
+      <div class="chip" id="lives">♥♥♥</div>
+      <div class="meter">
+        <span>Impact</span>
+        <div class="bar"><div id="impactFill"></div></div>
+      </div>
+      <button id="pauseBtn" class="icon" aria-label="Pause">⏸</button>
+    </header>
+
+    <div id="playArea">
+      <div class="lane"></div>
+      <div class="lane"></div>
+      <div class="lane"></div>
+      <div id="player" role="img" aria-label="Water droplet">💧</div>
+      <div id="hint">Swipe or use ← →</div>
+      <!-- Confetti container -->
+      <div id="confetti"></div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="view">
+    <h2 id="resultTitle">Run Complete!</h2>
+    <div class="card">
+      <h3 id="factTitle">Pipes Matter</h3>
+      <p id="factBody">A single pipe segment can connect a household to a clean water point for years.</p>
+    </div>
+    <div class="row">
+      <button id="againBtn" class="btn primary">Play Again</button>
+      <button id="homeResultsBtn" class="btn">Home</button>
+      <button id="shareBtn" class="btn">Share</button>
+    </div>
+    <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener" class="btn donate">Donate</a>
+  </section>
+
+  <!-- MODALS -->
+  <dialog id="howModal">
+    <h3>How It Helps</h3>
+    <ul>
+      <li>Millions walk miles for water daily.</li>
+      <li>Pipes, pumps, and filters change everything.</li>
+      <li>Play to learn. Share to help.</li>
+    </ul>
+    <div class="row right">
+      <button id="closeHow" class="btn primary">Close</button>
+    </div>
+  </dialog>
+
+  <dialog id="pauseModal">
+    <h3>Paused</h3>
+    <div class="row">
+      <button id="resumeBtn" class="btn primary">Resume</button>
+      <button id="homeBtn" class="btn">Home</button>
+    </div>
+  </dialog>
+
+  <script src="script.js"></script>
 </body>
 </html>
