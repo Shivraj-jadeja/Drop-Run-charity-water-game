@@ -1,151 +1,126 @@
 // ---- Elements
-const views = {
-  home: document.getElementById('home'),
-  game: document.getElementById('game'),
-  results: document.getElementById('results'),
-};
+const views = { home: byId('home'), game: byId('game'), results: byId('results') };
 const btn = {
-  play: document.getElementById('playBtn'),
-  how: document.getElementById('howBtn'),
-  closeHow: document.getElementById('closeHow'),
-  again: document.getElementById('againBtn'),
-  homeResults: document.getElementById('homeResultsBtn'),
-  share: document.getElementById('shareBtn'),
-  pause: document.getElementById('pauseBtn'),
-  resume: document.getElementById('resumeBtn'),
-  home: document.getElementById('homeBtn'),
+  play: byId('playBtn'), how: byId('howBtn'), closeHow: byId('closeHow'),
+  again: byId('againBtn'), homeResults: byId('homeResultsBtn'), share: byId('shareBtn'),
+  pause: byId('pauseBtn'), resume: byId('resumeBtn'), home: byId('homeBtn')
 };
-const modals = {
-  how: document.getElementById('howModal'),
-  pause: document.getElementById('pauseModal'),
+const modals = { how: byId('howModal'), pause: byId('pauseModal') };
+const playArea = byId('playArea');
+const player = byId('player');
+const scoreEl = byId('score');
+const livesEl = byId('lives');
+const impactFill = byId('impactFill');
+const factTitle = byId('factTitle');
+const factBody  = byId('factBody');
+const confettiLayer = byId('confetti');
+const resultTitle = byId('resultTitle');
+const difficultySelect = byId('difficulty');
+const milestoneBanner = byId('milestoneBanner');
+
+// ---- AUDIO
+const sfx = {
+  collect: byId('sfx-collect'), // good item
+  bad:     byId('sfx-bad'),     // bad item
+  over:    byId('sfx-over'),    // game over (lose)
+  win:     byId('sfx-win'),     // level complete (win)
+  music:   byId('music'),       // background loop
 };
-const playArea = document.getElementById('playArea');
-const player = document.getElementById('player');
-const scoreEl = document.getElementById('score');
-const livesEl = document.getElementById('lives');
-const impactFill = document.getElementById('impactFill');
-const factTitle = document.getElementById('factTitle');
-const factBody  = document.getElementById('factBody');
-const confettiLayer = document.getElementById('confetti');
-const resultTitle = document.getElementById('resultTitle');
+// recommended default volumes (tweak as you like)
+if (sfx.music)  sfx.music.volume = 0.25;
+if (sfx.collect) sfx.collect.volume = 0.7;
+if (sfx.bad)     sfx.bad.volume = 0.7;
+if (sfx.win)     sfx.win.volume = 0.8;
+if (sfx.over)    sfx.over.volume = 0.8;
 
-const FACTS = [
-  {title:'Pipes Matter', text:'A single pipe segment can connect a household to a clean water point for years.'},
-  {title:'Filters 101',  text:'Sand & charcoal layers remove many particulates and improve taste.'},
-  {title:'Time Saved',   text:'Clean water nearby can save families 1–3 hours a day.'},
-];
+// ---- Difficulty
+const DIFFICULTY = {
+  easy:   { timer: 70, spawnGap: 1000, speed: 110 },
+  normal: { timer: 60, spawnGap: 900,  speed: 120 },
+  hard:   { timer: 45, spawnGap: 720,  speed: 135 },
+};
+const MILESTONES = [5, 10, 15, 20];
+let _milestonesShown = new Set();
 
-// --- Item sets with per-item scoring
+// ---- ITEMS (exact set requested)
 const GOOD_ITEMS = [
-  {icon:"♻️", points:15, impact:6},
-  {icon:"✨", points:10, impact:5},
-  {icon:"🔧", points:12, impact:7},
+  {icon:"img:./img/jerrycan.png", points:10, impact:5, alt:"jerry can"},
+  {icon:"✨", points:8,  impact:4, alt:"sparkles"},
+  {icon:"♻️", points:6,  impact:3, alt:"recycle"},
 ];
 const BAD_ITEMS = [
-  {icon:"💥", points:-15},
-  {icon:"🛢️", points:-12},
-  {icon:"⚠️", points:-10},
+  {icon:"🛢️", points:-10, impact:0, alt:"oil barrel"},
+  {icon:"💥", points:-12,  impact:0, alt:"explosion"},
+  {icon:"⚠️", points:-8,   impact:0, alt:"warning"},
 ];
 
 // ---- State
-let state = 'HOME';          // HOME | PLAYING | PAUSED | RESULTS | CELEBRATE
-let lane = 1;                // 0..2
-let score = 0, lives = 3, impact = 0, timer = 60; // 60s run
-let lastSpawn = 0, spawnGap = 900, speed = 120;
-let objects = [];
-let rafId = 0, lastTime = 0;
+let state = 'HOME';   // HOME | PLAYING | PAUSED | CELEBRATE | RESULTS
+let lane = 1;         // 0..2
+let lastTime = 0, rafId = 0;
 
-// ---- Helpers
-function show(view) {
-  Object.values(views).forEach(v => v.classList.remove('active'));
-  views[view].classList.add('active');
+let score = 0, lives = 3, impact = 0, timer = 60;
+let objects = [];
+let lastSpawn = 0, spawnGap = 900, speed = 120;
+
+// ---- Utils
+function byId(id){ return document.getElementById(id); }
+function show(name){
+  Object.keys(views).forEach(k => views[k].classList.remove('active'));
+  views[name].classList.add('active');
 }
-function setLane(n) {
-  lane = Math.max(0, Math.min(2, n));
-  const w = playArea.clientWidth / 3;
-  player.style.left = ((lane + 0.5) * w) + 'px';
-}
-function updateHUD() {
+function updateHUD(){
   scoreEl.textContent = score;
   livesEl.textContent = '♥'.repeat(lives);
-  impactFill.style.width = impact + '%';
+  impactFill.style.width = `${impact}%`;
 }
-function pop(text) {
-  const f = document.createElement('div');
-  f.className = 'pop';
-  f.style.left = player.style.left;
-  f.textContent = text;
-  playArea.appendChild(f);
-  setTimeout(()=> f.remove(), 600);
+function setLane(n){
+  lane = Math.max(0, Math.min(2, n));
+  player.style.left = `calc(${(lane + 0.5) * 33.3333}% - 16px)`;
 }
-
-// ---- Water droplet "confetti"
-function rainOnce(count = 18) {
-  const w = playArea.clientWidth;
-  for (let i=0; i<count; i++){
-    const d = document.createElement('span');
-    d.className = 'drop';
-    d.textContent = '💧';
-    d.style.left = Math.random() * w + 'px';
-    d.style.fontSize = (18 + Math.random()*14) + 'px';
-    d.style.setProperty('--dur', (1.2 + Math.random()*1.2) + 's');
-    const sway = (Math.random()<0.5 ? -1 : 1) * (8 + Math.random()*28);
-    d.style.setProperty('--dx', sway + 'px');
-    confettiLayer.appendChild(d);
-    setTimeout(()=> d.remove(), 2400);
-  }
+function showMilestone(msg){
+  milestoneBanner.textContent = msg;
+  milestoneBanner.style.display = 'block';
+  setTimeout(()=> milestoneBanner.style.display='none', 1400);
 }
 
-// Smooth celebration: keep raining in small waves, then resolve after ms
-function rainSequence(ms = 3000) {
-  return new Promise(resolve => {
-    const start = performance.now();
-    // first burst feels good
-    rainOnce(26);
-    // then small waves every ~200ms
-    const interval = setInterval(() => {
-      rainOnce(12);
-      if (performance.now() - start > ms) {
-        clearInterval(interval);
-        // small final burst
-        rainOnce(30);
-        // wait a bit so final drops can fall
-        setTimeout(resolve, 800);
-      }
-    }, 220);
-  });
-}
-
-// ---- Game loop functions
-function spawn(ts) {
+// ---- Spawn
+function spawn(ts){
   if (ts - lastSpawn < spawnGap) return;
   lastSpawn = ts;
-  spawnGap = Math.max(500, 700 + Math.random() * 500);
 
-  const laneIndex = Math.floor(Math.random() * 3);
-  const isGood = Math.random() < 0.6; // 60% good
-  const item = isGood
-    ? GOOD_ITEMS[Math.floor(Math.random() * GOOD_ITEMS.length)]
-    : BAD_ITEMS[Math.floor(Math.random() * BAD_ITEMS.length)];
+  const good = Math.random() < 0.7;
+  const laneIdx = Math.floor(Math.random() * 3);
+  const set = good ? GOOD_ITEMS : BAD_ITEMS;
+  const pick = set[Math.floor(Math.random() * set.length)];
 
   const el = document.createElement('div');
-  el.className = 'object ' + (isGood ? 'good' : 'hazard');
-  el.dataset.good = isGood ? '1' : '0';
-  el.dataset.lane = laneIndex;
-  el.dataset.y = '-40';
-  el.dataset.points = String(item.points);
-  el.dataset.impact = String(item.impact || 0);
-  el.style.left = ((laneIndex + 0.5) * (playArea.clientWidth/3) - 10) + 'px';
-  el.textContent = item.icon;
+  el.className = 'obj';
+  el.dataset.lane = String(laneIdx);
+  el.dataset.y = '-20';
+  el.dataset.good = good ? '1' : '0';
+  el.dataset.points = String(pick.points || 0);
+  el.dataset.impact = String(pick.impact || 0);
 
+  if (typeof pick.icon === 'string' && pick.icon.startsWith('img:')){
+    const img = document.createElement('img');
+    img.src = pick.icon.slice(4);
+    img.alt = pick.alt || '';
+    el.appendChild(img);
+  } else {
+    el.textContent = pick.icon;
+    el.setAttribute('aria-label', pick.alt || '');
+  }
+
+  const x = (playArea.clientWidth * (laneIdx + 0.5) / 3);
+  el.style.left = `${x}px`;
+  el.style.top = '-20px';
   playArea.appendChild(el);
   objects.push(el);
 }
 
-function step(dt) {
-  speed = Math.min(260, speed + dt * 2);
-
-  for (let i = objects.length - 1; i >= 0; i--) {
+function step(dt){
+  for (let i=objects.length-1; i>=0; i--){
     const el = objects[i];
     let y = parseFloat(el.dataset.y);
     y += speed * dt;
@@ -153,10 +128,10 @@ function step(dt) {
     el.style.top = y + 'px';
 
     const sameLane = parseInt(el.dataset.lane,10) === lane;
-    const hitBandTop = playArea.clientHeight - 100;
-    const hitBandBottom = playArea.clientHeight - 40;
+    const hitTop = playArea.clientHeight - 100;
+    const hitBottom = playArea.clientHeight - 40;
 
-    if (sameLane && y > hitBandTop && y < hitBandBottom) {
+    if (sameLane && y > hitTop && y < hitBottom) {
       const good = el.dataset.good === '1';
       const pts = parseInt(el.dataset.points, 10) || 0;
       const imp = parseInt(el.dataset.impact, 10) || 0;
@@ -164,11 +139,20 @@ function step(dt) {
       if (good) {
         score = Math.max(0, score + pts);
         impact = Math.min(100, impact + imp);
-        pop(`${pts > 0 ? '+' : ''}${pts}`);
+        pop(`+${pts}`);
+        try { sfx.collect && sfx.collect.play(); } catch(_) {}
+        for (const m of MILESTONES) {
+          if (score >= m && !_milestonesShown.has(m)) {
+            _milestonesShown.add(m);
+            showMilestone(m >= 15 ? "So close — don’t stop!" : "Nice!");
+            break;
+          }
+        }
       } else {
         lives = Math.max(0, lives - 1);
         score = Math.max(0, score + pts); // negative
         pop(`−1 ♥  ${pts}`);
+        try { sfx.bad && sfx.bad.play(); } catch(_) {}
       }
 
       el.remove();
@@ -178,12 +162,55 @@ function step(dt) {
       objects.splice(i, 1);
     }
   }
-
   updateHUD();
 }
 
-function loop(ts) {
+// ---- Input
+window.addEventListener('keydown', (e) => {
   if (state !== 'PLAYING') return;
+  if (e.key === 'ArrowLeft') setLane(lane-1);
+  if (e.key === 'ArrowRight') setLane(lane+1);
+});
+
+// ---- Feedback & confetti
+function pop(text){
+  const f = document.createElement('div');
+  f.className = 'pop';
+  f.style.left = player.style.left;
+  f.textContent = text;
+  playArea.appendChild(f);
+  setTimeout(()=> f.remove(), 600);
+}
+function rainOnce(count = 18) {
+  const w = playArea.clientWidth;
+  for (let i=0; i<count; i++){
+    const d = document.createElement('span');
+    d.className = 'drop';
+    d.textContent = '💧';
+    d.style.left = Math.random() * w + 'px';
+    d.style.fontSize = (18 + Math.random()*14) + 'px';
+    d.style.setProperty('--dur', (1.2 + Math.random()*1.2) + 's');
+    confettiLayer.appendChild(d);
+    setTimeout(()=> d.remove(), 2400);
+  }
+}
+function rainSequence(ms = 3000) {
+  return new Promise(resolve => {
+    const start = performance.now();
+    rainOnce(26);
+    const tick = () => {
+      const now = performance.now();
+      if (now - start < ms){
+        if ((now - start) % 600 < 40) rainOnce(12);
+        requestAnimationFrame(tick);
+      } else resolve();
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+// ---- Loop
+function loop(ts){
   if (!lastTime) lastTime = ts;
   const dt = (ts - lastTime) / 1000;
   lastTime = ts;
@@ -198,54 +225,60 @@ function loop(ts) {
   rafId = requestAnimationFrame(loop);
 }
 
-// ---- Controls
-window.addEventListener('keydown', e => {
-  if (state !== 'PLAYING') return;
-  if (e.key === 'ArrowLeft') setLane(lane - 1);
-  if (e.key === 'ArrowRight') setLane(lane + 1);
-});
+// ---- Audio helpers
+function startMusic(){
+  try { sfx.music && (sfx.music.currentTime = 0, sfx.music.play()); } catch(_) {}
+}
+function pauseMusic(){
+  try { sfx.music && sfx.music.pause(); } catch(_) {}
+}
+function stopMusic(){
+  try { if (sfx.music){ sfx.music.pause(); sfx.music.currentTime = 0; } } catch(_) {}
+}
 
-let touchX = null;
-playArea.addEventListener('touchstart', e => { touchX = e.changedTouches[0].clientX; }, {passive:true});
-playArea.addEventListener('touchend', e => {
-  if (touchX == null) return;
-  const dx = e.changedTouches[0].clientX - touchX;
-  if (Math.abs(dx) > 30) setLane(lane + (dx > 0 ? 1 : -1));
-  touchX = null;
-}, {passive:true});
-
-// ---- Transitions
+// ---- Run lifecycle
 function startRun() {
   state = 'PLAYING';
   show('game');
-  score = 0; lives = 3; impact = 0; timer = 60;
-  lastSpawn = 0; spawnGap = 900; speed = 120; lastTime = 0;
+  score = 0; lives = 3; impact = 0;
+  _milestonesShown.clear();
+
+  const d = DIFFICULTY[(difficultySelect&&difficultySelect.value)||'normal'] || DIFFICULTY.normal;
+  timer = d.timer; lastSpawn = 0; spawnGap = d.spawnGap; speed = d.speed; lastTime = 0;
+
   objects.forEach(o => o.remove()); objects = [];
-  confettiLayer.innerHTML = ''; // clear old droplets
+  confettiLayer.innerHTML = '';
   setLane(1); updateHUD();
+
+  // Autoplay policies require user gesture; Play button triggers this.
+  startMusic();
+
   rafId = requestAnimationFrame(loop);
 }
 
 function endRun(reason = 'normal') {
   cancelAnimationFrame(rafId);
 
+  // Stop music immediately on end; then play outcome SFX
+  stopMusic();
+
   if (reason === 'impact') {
-    // 1) Enter a celebration state (stay on Game view)
+    try { sfx.win && sfx.win.play(); } catch(_) {}
     state = 'CELEBRATE';
     resultTitle.textContent = 'Impact Reached! 🎉';
     factTitle.textContent = 'Great job!';
     factBody.textContent  = 'Your Impact bar hit 100%. Thanks for learning and sharing clean water facts.';
-
-    // 2) Run a smooth droplet rain for ~3 seconds
-    rainSequence(3000).then(() => {
-      // 3) After rain, switch to Results
-      state = 'RESULTS';
-      show('results');
-    });
+    rainSequence(3000).then(() => { state = 'RESULTS'; show('results'); });
   } else {
+    try { sfx.over && sfx.over.play(); } catch(_) {}
     state = 'RESULTS';
     resultTitle.textContent = 'Run Complete!';
-    const fact = FACTS[Math.floor(Math.random()*FACTS.length)];
+    const facts = [
+      {title:'Pipes Matter', text:'A single pipe segment can connect a household to a clean water point for years.'},
+      {title:'Filters 101',  text:'Sand & charcoal layers remove many particulates and improve taste.'},
+      {title:'Time Saved',   text:'Clean water nearby can save families 1–3 hours a day.'},
+    ];
+    const fact = facts[Math.floor(Math.random()*facts.length)];
     factTitle.textContent = fact.title;
     factBody.textContent = fact.text;
     show('results');
@@ -260,12 +293,14 @@ btn.pause.addEventListener('click', () => {
   if (state !== 'PLAYING') return;
   state = 'PAUSED';
   cancelAnimationFrame(rafId);
+  pauseMusic();
   modals.pause.showModal();
 });
 btn.resume.addEventListener('click', () => {
   if (state !== 'PAUSED') return;
   modals.pause.close();
   state = 'PLAYING'; lastTime = 0;
+  startMusic();
   rafId = requestAnimationFrame(loop);
 });
 btn.home.addEventListener('click', () => { modals.pause.close(); state='HOME'; show('home'); });
@@ -279,4 +314,4 @@ btn.share.addEventListener('click', async () => {
 
 // ---- Init
 show('home');
-console.log('Drop Run ready (smooth droplet rain + delayed results).');
+console.log('Drop Run ready: SFX + music wired (GOOD: jerrycan.png/✨/♻️ | BAD: 🛢️/💥/⚠️).');
