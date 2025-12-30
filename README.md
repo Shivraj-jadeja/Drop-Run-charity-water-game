@@ -5,6 +5,10 @@ The project focuses on core game mechanics, real-time state updates, and user en
 
 ---
 
+![Charity Water Game](img/charity-water-game.png)
+
+---
+
 ## ✨ Overview
 
 Drop Run is an interactive lane-based game where players control a water droplet and collect positive items while avoiding harmful obstacles.
